@@ -20,11 +20,11 @@ services:
       context: ./app
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3500:3000"
     environment:
       DATABASE_URL: "postgresql://planowanie:planowanie@db:5432/planowanie?schema=public"
       NEXTAUTH_SECRET: "super-secret-dev-key-change-in-production"
-      NEXTAUTH_URL: "http://localhost:3000"
+      NEXTAUTH_URL: "http://localhost:3500"
     depends_on:
       db:
         condition: service_healthy

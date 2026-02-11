@@ -38,7 +38,7 @@ docker compose up --build -d
 
 echo ""
 echo "=== Gotowe! ==="
-echo "Aplikacja dostępna pod: http://localhost:3000"
+echo "Aplikacja dostępna pod: http://localhost:3500"
 echo "Login: admin@amplitiv.com"
 echo "Hasło: admin123"
 echo ""
