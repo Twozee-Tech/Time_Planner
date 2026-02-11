@@ -24,7 +24,7 @@ services:
     environment:
       DATABASE_URL: "postgresql://planowanie:planowanie@db:5432/planowanie?schema=public"
       NEXTAUTH_SECRET: "super-secret-dev-key-change-in-production"
-      NEXTAUTH_URL: "http://localhost:3500"
+      NEXTAUTH_URL: "https://planner.renesis.pl"
     depends_on:
       db:
         condition: service_healthy
