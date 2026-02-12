@@ -50,6 +50,18 @@ interface Person {
   section: Section;
 }
 
+const MD_PER_MONTH = 18;
+
+function getMdLeft() {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentDay = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), currentMonth + 1, 0).getDate();
+  const fractionLeft = (daysInMonth - currentDay) / daysInMonth;
+  const remainingFullMonths = 11 - currentMonth;
+  return Math.round((fractionLeft + remainingFullMonths) * MD_PER_MONTH);
+}
+
 const WORKLOAD_COLORS: Record<string, string> = {
   RED: "bg-red-400 text-white",
   YELLOW: "bg-yellow-300 text-yellow-900",
@@ -136,6 +148,7 @@ export default function DashboardPage() {
   }, [days]);
 
   const isToday = (date: Date) => formatDateKey(date) === formatDateKey(new Date());
+  const mdLeft = useMemo(() => getMdLeft(), []);
 
   return (
     <div className="p-4">
@@ -232,12 +245,17 @@ export default function DashboardPage() {
                 {people.map((person) => (
                   <tr key={person.id} className="border-b hover:bg-gray-50/50">
                     <td className="sticky left-0 z-10 bg-white border-r px-3 py-1.5 text-sm font-medium whitespace-nowrap">
-                      <button
-                        onClick={() => router.push(`/person/${person.id}`)}
-                        className="text-left hover:text-[#F97316] hover:underline transition-colors"
-                      >
-                        {person.firstName} {person.lastName}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-gray-400 font-mono w-8 text-right" title="Man Days do końca roku">
+                          {mdLeft}
+                        </span>
+                        <button
+                          onClick={() => router.push(`/person/${person.id}`)}
+                          className="text-left hover:text-[#F97316] hover:underline transition-colors"
+                        >
+                          {person.firstName} {person.lastName}
+                        </button>
+                      </div>
                     </td>
                     {days.map((day, di) => {
                       const dateStr = formatDateKey(day);
