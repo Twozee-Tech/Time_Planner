@@ -52,7 +52,7 @@ interface Person {
 
 const MD_PER_MONTH = 18;
 
-function getMdLeft() {
+function getTotalMdLeft() {
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentDay = now.getDate();
@@ -106,6 +106,17 @@ export default function DashboardPage() {
       ),
   });
 
+  // Fetch assignments from today to end of year for MD calculation
+  const todayStr = formatDateKey(new Date());
+  const yearEnd = `${new Date().getFullYear()}-12-31`;
+  const { data: yearAssignments = [] } = useQuery<Assignment[]>({
+    queryKey: ["assignments-year", todayStr, yearEnd],
+    queryFn: () =>
+      fetch(`/api/assignments?dateFrom=${todayStr}&dateTo=${yearEnd}`).then((r) =>
+        r.json()
+      ),
+  });
+
   // Build lookup map: "personId-date" -> Assignment[]
   const assignmentMap = useMemo(() => {
     const map = new Map<string, Assignment[]>();
@@ -148,7 +159,26 @@ export default function DashboardPage() {
   }, [days]);
 
   const isToday = (date: Date) => formatDateKey(date) === formatDateKey(new Date());
-  const mdLeft = useMemo(() => getMdLeft(), []);
+  const totalMd = useMemo(() => getTotalMdLeft(), []);
+
+  // Count unique assigned days per person (from today to year end)
+  const mdLeftMap = useMemo(() => {
+    const plannedDays = new Map<string, Set<string>>();
+    for (const a of yearAssignments) {
+      const dateStr = a.date.split("T")[0];
+      if (!plannedDays.has(a.personId)) {
+        plannedDays.set(a.personId, new Set());
+      }
+      plannedDays.get(a.personId)!.add(dateStr);
+    }
+
+    const result = new Map<string, number>();
+    for (const person of activePersons) {
+      const planned = plannedDays.get(person.id)?.size || 0;
+      result.set(person.id, totalMd - planned);
+    }
+    return result;
+  }, [yearAssignments, activePersons, totalMd]);
 
   return (
     <div className="p-4">
@@ -246,8 +276,8 @@ export default function DashboardPage() {
                   <tr key={person.id} className="border-b hover:bg-gray-50/50">
                     <td className="sticky left-0 z-10 bg-white border-r px-3 py-1.5 text-sm font-medium whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-gray-400 font-mono w-8 text-right" title="Man Days do końca roku">
-                          {mdLeft}
+                        <span className="text-[10px] text-gray-400 font-mono w-8 text-right" title="Man Days wolne do końca roku">
+                          {mdLeftMap.get(person.id) ?? totalMd}
                         </span>
                         <button
                           onClick={() => router.push(`/person/${person.id}`)}
