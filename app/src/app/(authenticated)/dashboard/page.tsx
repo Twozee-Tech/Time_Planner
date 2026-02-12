@@ -212,7 +212,7 @@ export default function DashboardPage() {
       <div className="overflow-x-auto border rounded-lg bg-white">
         <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "180px", minWidth: "180px" }} />
+            <col style={{ width: "210px", minWidth: "210px" }} />
             {days.map((_, i) => (
               <col key={i} style={{ width: "56px", minWidth: "56px" }} />
             ))}
@@ -222,9 +222,12 @@ export default function DashboardPage() {
             {/* Month header row */}
             <tr className="border-b">
               <th
-                className="sticky left-0 z-20 bg-white border-r px-3 py-1"
+                className="sticky left-0 z-20 bg-white border-r px-3 py-1 text-left text-[10px] text-gray-400 font-normal"
                 rowSpan={2}
-              />
+                title="Man Days wolne do końca roku"
+              >
+                <span className="cursor-help">MD</span>
+              </th>
               {monthSpans.map((span, i) => (
                 <th
                   key={i}
