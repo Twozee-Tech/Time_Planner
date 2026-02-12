@@ -225,9 +225,8 @@ export default function DashboardPage() {
               <th
                 className="sticky left-0 z-20 bg-white border-r px-2 py-1 text-center text-[10px] text-gray-400 font-normal"
                 rowSpan={2}
-                title="Man Days wolne do końca roku"
               >
-                <span className="cursor-help">MD</span>
+                <span className="cursor-help" title="MD — suma wolnych dni roboczych do końca roku (18 dni/miesiąc minus zaplanowane)">MD</span>
               </th>
               <th
                 className="sticky left-[40px] z-20 bg-white border-r px-3 py-1 text-left text-xs text-gray-500 font-medium"
@@ -274,8 +273,14 @@ export default function DashboardPage() {
                 {/* Section header row */}
                 <tr key={`section-${section.id}`} className="bg-[#1E293B]">
                   <td
-                    colSpan={days.length + 2}
-                    className="sticky left-0 z-10 px-3 py-1.5 text-xs font-bold text-white uppercase tracking-wider"
+                    className="sticky left-0 z-10 bg-[#1E293B] border-r border-white/20 px-2 py-1.5 text-[10px] font-bold text-white text-center font-mono"
+                    title={`Suma MD wolnych: ${section.name}`}
+                  >
+                    {people.reduce((sum, p) => sum + (mdLeftMap.get(p.id) ?? totalMd), 0)}
+                  </td>
+                  <td
+                    colSpan={days.length + 1}
+                    className="sticky left-[40px] z-10 bg-[#1E293B] px-3 py-1.5 text-xs font-bold text-white uppercase tracking-wider"
                   >
                     {section.name}
                   </td>
