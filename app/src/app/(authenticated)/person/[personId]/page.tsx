@@ -56,6 +56,29 @@ const WORKLOAD_BG: Record<string, string> = {
   GREEN: "bg-green-200",
 };
 
+const DAY_HEADERS = ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"];
+
+function buildMonthGrid(month: Date) {
+  const monthStart = startOfMonth(month);
+  const monthEnd = endOfMonth(month);
+  const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+
+  const days: Date[] = [];
+  let current = calStart;
+  while (current <= calEnd) {
+    days.push(current);
+    current = addDays(current, 1);
+  }
+
+  const weeks: Date[][] = [];
+  for (let i = 0; i < days.length; i += 7) {
+    weeks.push(days.slice(i, i + 7));
+  }
+
+  return { days, weeks, monthStart, monthEnd };
+}
+
 export default function PersonCalendarPage({ params }: { params: Promise<{ personId: string }> }) {
   const { personId } = use(params);
   const router = useRouter();
@@ -76,45 +99,41 @@ export default function PersonCalendarPage({ params }: { params: Promise<{ perso
     setAllDates,
   } = useDragSelect();
 
-  // Calendar grid
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
-  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const nextMonth = addMonths(currentMonth, 1);
 
-  const calendarDays = useMemo(() => {
-    const days: Date[] = [];
-    let current = calendarStart;
-    while (current <= calendarEnd) {
-      days.push(current);
-      current = addDays(current, 1);
-    }
-    return days;
-  }, [calendarStart.getTime(), calendarEnd.getTime()]);
+  // Build grids for both months
+  const month1 = useMemo(() => buildMonthGrid(currentMonth), [currentMonth.getTime()]);
+  const month2 = useMemo(() => buildMonthGrid(nextMonth), [nextMonth.getTime()]);
 
-  // Holiday set
+  // Holiday set covering both months
   const holidaySet = useMemo(() => {
-    const years = new Set(calendarDays.map((d) => d.getFullYear()));
+    const allDays = [...month1.days, ...month2.days];
+    const years = new Set(allDays.map((d) => d.getFullYear()));
     const set = new Set<string>();
     for (const year of years) {
       for (const h of getHolidaySet(year)) set.add(h);
     }
     return set;
-  }, [calendarDays]);
+  }, [month1.days, month2.days]);
 
-  // Working days only (for drag selection)
-  const workingDays = useMemo(
-    () => calendarDays.filter((d) => !isNonWorkingDay(d, holidaySet) && d.getMonth() === currentMonth.getMonth()),
-    [calendarDays, holidaySet, currentMonth]
-  );
+  // Working days from both months (for drag selection)
+  const workingDays = useMemo(() => {
+    const m1working = month1.days.filter(
+      (d) => !isNonWorkingDay(d, holidaySet) && d.getMonth() === currentMonth.getMonth()
+    );
+    const m2working = month2.days.filter(
+      (d) => !isNonWorkingDay(d, holidaySet) && d.getMonth() === nextMonth.getMonth()
+    );
+    return [...m1working, ...m2working];
+  }, [month1.days, month2.days, holidaySet, currentMonth, nextMonth]);
 
   useEffect(() => {
     setAllDates(workingDays.map(formatDateKey));
   }, [workingDays, setAllDates]);
 
-  // Fetch data
-  const dateFrom = formatDateKey(calendarStart);
-  const dateTo = formatDateKey(calendarEnd);
+  // Fetch data spanning both months
+  const dateFrom = formatDateKey(month1.days[0]);
+  const dateTo = formatDateKey(month2.days[month2.days.length - 1]);
 
   const { data: person } = useQuery<Person>({
     queryKey: ["person", personId],
@@ -153,7 +172,6 @@ export default function PersonCalendarPage({ params }: { params: Promise<{ perso
     if (selectedDates.size === 0) return;
 
     const selectedArray = Array.from(selectedDates);
-    // Check if all selected dates have the same assignments
     const firstDateAssignments = assignmentMap.get(selectedArray[0]) || [];
 
     if (firstDateAssignments.length > 0) {
@@ -244,15 +262,76 @@ export default function PersonCalendarPage({ params }: { params: Promise<{ perso
     setSelectedProjects(next);
   }
 
-  const weeks = useMemo(() => {
-    const result: Date[][] = [];
-    for (let i = 0; i < calendarDays.length; i += 7) {
-      result.push(calendarDays.slice(i, i + 7));
-    }
-    return result;
-  }, [calendarDays]);
+  function renderMonthGrid(month: Date, weeks: Date[][]) {
+    const monthIdx = month.getMonth();
+    return (
+      <div>
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {DAY_HEADERS.map((d) => (
+            <div key={d} className="text-center text-xs font-semibold text-gray-500 py-1">
+              {d}
+            </div>
+          ))}
+        </div>
+        {weeks.map((week, wi) => (
+          <div key={wi} className="grid grid-cols-7 gap-1 mb-1">
+            {week.map((day) => {
+              const dateStr = formatDateKey(day);
+              const isThisMonth = day.getMonth() === monthIdx;
+              const nonWorking = isNonWorkingDay(day, holidaySet);
+              const isSelected = selectedDates.has(dateStr);
+              const dayAssignments = assignmentMap.get(dateStr) || [];
+              const primary = dayAssignments.find((a) => a.isPrimary);
+              const wl = primary?.workload || dayAssignments[0]?.workload;
+              const isSelectableDay = isThisMonth && !nonWorking;
 
-  const dayHeaders = ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"];
+              return (
+                <div
+                  key={dateStr}
+                  className={cn(
+                    "relative h-20 rounded-lg border text-sm p-1 transition-colors",
+                    !isThisMonth && "opacity-30",
+                    nonWorking && isThisMonth && "bg-gray-100 text-gray-400",
+                    isSelectableDay && !wl && "bg-white hover:bg-gray-50 cursor-pointer",
+                    isSelectableDay && wl && WORKLOAD_BG[wl],
+                    isSelected && "ring-2 ring-[#F97316] ring-offset-1",
+                    isDragging && isSelectableDay && "cursor-crosshair"
+                  )}
+                  onPointerDown={(e) => isSelectableDay && handlePointerDown(dateStr, e)}
+                  onPointerEnter={() => isSelectableDay && handlePointerEnter(dateStr)}
+                >
+                  <div className={cn(
+                    "text-xs font-medium",
+                    formatDateKey(new Date()) === dateStr && "text-[#F97316] font-bold"
+                  )}>
+                    {day.getDate()}
+                  </div>
+                  {isThisMonth && dayAssignments.length > 0 && (
+                    <div className="mt-0.5 space-y-0.5 overflow-hidden">
+                      {dayAssignments.slice(0, 3).map((a) => (
+                        <div
+                          key={a.id}
+                          className={cn(
+                            "text-[9px] leading-tight truncate rounded px-0.5",
+                            a.isPrimary ? "font-bold" : "text-gray-600"
+                          )}
+                        >
+                          {a.project.label || a.project.name}
+                        </div>
+                      ))}
+                      {dayAssignments.length > 3 && (
+                        <div className="text-[9px] text-gray-400">+{dayAssignments.length - 3}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full">
@@ -283,6 +362,8 @@ export default function PersonCalendarPage({ params }: { params: Promise<{ perso
           </Button>
           <h2 className="text-lg font-semibold">
             {getMonthName(currentMonth.getMonth())} {currentMonth.getFullYear()}
+            {" — "}
+            {getMonthName(nextMonth.getMonth())} {nextMonth.getFullYear()}
           </h2>
           <Button
             variant="outline"
@@ -293,84 +374,33 @@ export default function PersonCalendarPage({ params }: { params: Promise<{ perso
           </Button>
         </div>
 
-        {/* Calendar grid */}
+        {/* Two calendar grids */}
         <div
-          className="max-w-2xl select-none"
+          className="max-w-2xl select-none space-y-6"
           style={{ touchAction: "none" }}
           onPointerUp={handlePointerUp}
         >
-          {/* Day headers */}
-          <div className="grid grid-cols-7 gap-1 mb-1">
-            {dayHeaders.map((d) => (
-              <div key={d} className="text-center text-xs font-semibold text-gray-500 py-1">
-                {d}
-              </div>
-            ))}
+          {/* Month 1 */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-2">
+              {getMonthName(currentMonth.getMonth())} {currentMonth.getFullYear()}
+            </h3>
+            {renderMonthGrid(currentMonth, month1.weeks)}
           </div>
 
-          {/* Calendar weeks */}
-          {weeks.map((week, wi) => (
-            <div key={wi} className="grid grid-cols-7 gap-1 mb-1">
-              {week.map((day) => {
-                const dateStr = formatDateKey(day);
-                const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
-                const nonWorking = isNonWorkingDay(day, holidaySet);
-                const isSelected = selectedDates.has(dateStr);
-                const dayAssignments = assignmentMap.get(dateStr) || [];
-                const primary = dayAssignments.find((a) => a.isPrimary);
-                const wl = primary?.workload || dayAssignments[0]?.workload;
-                const isSelectableDay = isCurrentMonth && !nonWorking;
-
-                return (
-                  <div
-                    key={dateStr}
-                    className={cn(
-                      "relative h-20 rounded-lg border text-sm p-1 transition-colors",
-                      !isCurrentMonth && "opacity-30",
-                      nonWorking && isCurrentMonth && "bg-gray-100 text-gray-400",
-                      isSelectableDay && !wl && "bg-white hover:bg-gray-50 cursor-pointer",
-                      isSelectableDay && wl && WORKLOAD_BG[wl],
-                      isSelected && "ring-2 ring-[#F97316] ring-offset-1",
-                      isDragging && isSelectableDay && "cursor-crosshair"
-                    )}
-                    onPointerDown={(e) => isSelectableDay && handlePointerDown(dateStr, e)}
-                    onPointerEnter={() => isSelectableDay && handlePointerEnter(dateStr)}
-                  >
-                    <div className={cn(
-                      "text-xs font-medium",
-                      formatDateKey(new Date()) === dateStr && "text-[#F97316] font-bold"
-                    )}>
-                      {day.getDate()}
-                    </div>
-                    {isCurrentMonth && dayAssignments.length > 0 && (
-                      <div className="mt-0.5 space-y-0.5 overflow-hidden">
-                        {dayAssignments.slice(0, 3).map((a) => (
-                          <div
-                            key={a.id}
-                            className={cn(
-                              "text-[9px] leading-tight truncate rounded px-0.5",
-                              a.isPrimary ? "font-bold" : "text-gray-600"
-                            )}
-                          >
-                            {a.project.label || a.project.name}
-                          </div>
-                        ))}
-                        {dayAssignments.length > 3 && (
-                          <div className="text-[9px] text-gray-400">+{dayAssignments.length - 3}</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+          {/* Month 2 */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-2">
+              {getMonthName(nextMonth.getMonth())} {nextMonth.getFullYear()}
+            </h3>
+            {renderMonthGrid(nextMonth, month2.weeks)}
+          </div>
         </div>
       </div>
 
       {/* Assignment panel (right side) */}
       {selectedDates.size > 0 && (
-        <div className="w-80 border-l bg-white p-5 overflow-y-auto">
+        <div className="w-96 shrink-0 border-l bg-white p-5 overflow-y-auto">
           <h3 className="font-semibold text-lg mb-1">Przypisanie projektów</h3>
           <p className="text-sm text-muted-foreground mb-4">
             Zaznaczono {selectedDates.size} {selectedDates.size === 1 ? "dzień" : "dni"}
@@ -419,23 +449,25 @@ export default function PersonCalendarPage({ params }: { params: Promise<{ perso
                   (p.label && p.label.toLowerCase().includes(q))
                 );
               }).map((project) => (
-                <div key={project.id} className="flex items-center gap-3 py-1">
+                <div key={project.id} className="flex items-center gap-2 py-1">
                   <Checkbox
                     id={`proj-${project.id}`}
                     checked={selectedProjects.has(project.id)}
                     onCheckedChange={() => toggleProject(project.id)}
+                    className="shrink-0"
                   />
                   <label
                     htmlFor={`proj-${project.id}`}
-                    className="flex-1 text-sm cursor-pointer"
+                    className="flex-1 text-sm cursor-pointer truncate"
+                    title={project.name}
                   >
-                    {project.name}
+                    {project.label || project.name}
                   </label>
                   {selectedProjects.has(project.id) && (
                     <button
                       onClick={() => setPrimaryProjectId(project.id)}
                       className={cn(
-                        "text-[10px] px-2 py-0.5 rounded-full border transition-colors",
+                        "shrink-0 text-[10px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap",
                         primaryProjectId === project.id
                           ? "bg-[#F97316] text-white border-[#F97316]"
                           : "text-gray-500 border-gray-300 hover:border-[#F97316]"
