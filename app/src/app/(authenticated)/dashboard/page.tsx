@@ -212,7 +212,8 @@ export default function DashboardPage() {
       <div className="overflow-x-auto border rounded-lg bg-white">
         <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "210px", minWidth: "210px" }} />
+            <col style={{ width: "40px", minWidth: "40px" }} />
+            <col style={{ width: "180px", minWidth: "180px" }} />
             {days.map((_, i) => (
               <col key={i} style={{ width: "56px", minWidth: "56px" }} />
             ))}
@@ -222,11 +223,17 @@ export default function DashboardPage() {
             {/* Month header row */}
             <tr className="border-b">
               <th
-                className="sticky left-0 z-20 bg-white border-r px-3 py-1 text-left text-[10px] text-gray-400 font-normal"
+                className="sticky left-0 z-20 bg-white border-r px-2 py-1 text-center text-[10px] text-gray-400 font-normal"
                 rowSpan={2}
                 title="Man Days wolne do końca roku"
               >
                 <span className="cursor-help">MD</span>
+              </th>
+              <th
+                className="sticky left-[40px] z-20 bg-white border-r px-3 py-1 text-left text-xs text-gray-500 font-medium"
+                rowSpan={2}
+              >
+                Imię i nazwisko
               </th>
               {monthSpans.map((span, i) => (
                 <th
@@ -267,7 +274,7 @@ export default function DashboardPage() {
                 {/* Section header row */}
                 <tr key={`section-${section.id}`} className="bg-[#1E293B]">
                   <td
-                    colSpan={days.length + 1}
+                    colSpan={days.length + 2}
                     className="sticky left-0 z-10 px-3 py-1.5 text-xs font-bold text-white uppercase tracking-wider"
                   >
                     {section.name}
@@ -277,18 +284,16 @@ export default function DashboardPage() {
                 {/* Person rows */}
                 {people.map((person) => (
                   <tr key={person.id} className="border-b hover:bg-gray-50/50">
-                    <td className="sticky left-0 z-10 bg-white border-r px-3 py-1.5 text-sm font-medium whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-gray-400 font-mono w-8 text-right" title="Man Days wolne do końca roku">
-                          {mdLeftMap.get(person.id) ?? totalMd}
-                        </span>
-                        <button
-                          onClick={() => router.push(`/person/${person.id}`)}
-                          className="text-left hover:text-[#F97316] hover:underline transition-colors"
-                        >
-                          {person.firstName} {person.lastName}
-                        </button>
-                      </div>
+                    <td className="sticky left-0 z-10 bg-white border-r px-2 py-1.5 text-center text-[10px] text-gray-400 font-mono" title="Man Days wolne do końca roku">
+                      {mdLeftMap.get(person.id) ?? totalMd}
+                    </td>
+                    <td className="sticky left-[40px] z-10 bg-white border-r px-3 py-1.5 text-sm font-medium whitespace-nowrap">
+                      <button
+                        onClick={() => router.push(`/person/${person.id}`)}
+                        className="text-left hover:text-[#F97316] hover:underline transition-colors"
+                      >
+                        {person.firstName} {person.lastName}
+                      </button>
                     </td>
                     {days.map((day, di) => {
                       const dateStr = formatDateKey(day);
