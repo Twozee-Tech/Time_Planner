@@ -3,10 +3,11 @@ import { getToken } from "next-auth/jwt";
 import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { userCreateSchema } from "@/lib/validators";
+import { isAdmin } from "@/lib/auth-utils";
 
 export async function GET(request: Request) {
   const token = await getToken({ req: request as never, secret: process.env.NEXTAUTH_SECRET });
-  if (!token || token.role !== "ADMIN") {
+  if (!token || !isAdmin(token.role as string)) {
     return NextResponse.json({ error: "Brak uprawnień" }, { status: 403 });
   }
 
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const token = await getToken({ req: request as never, secret: process.env.NEXTAUTH_SECRET });
-  if (!token || token.role !== "ADMIN") {
+  if (!token || !isAdmin(token.role as string)) {
     return NextResponse.json({ error: "Brak uprawnień" }, { status: 403 });
   }
 

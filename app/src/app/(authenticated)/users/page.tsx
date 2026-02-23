@@ -24,7 +24,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN" | "USER";
+  role: "SUPER_ADMIN" | "ADMIN" | "USER";
   createdAt: string;
 }
 
@@ -41,7 +41,8 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = useState("");
 
   const userRole = (session?.user as { role?: string } | undefined)?.role;
-  const isAdmin = userRole === "ADMIN";
+  const isSuperAdmin = userRole === "SUPER_ADMIN";
+  const isAdmin = userRole === "ADMIN" || userRole === "SUPER_ADMIN";
 
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ["users"],
@@ -49,7 +50,7 @@ export default function UsersPage() {
       if (!r.ok) throw new Error("Brak uprawnień");
       return r.json();
     }),
-    enabled: isAdmin,
+    enabled: isSuperAdmin,
   });
 
   const createMutation = useMutation({
@@ -160,7 +161,7 @@ export default function UsersPage() {
     }
   }
 
-  if (session && !isAdmin) {
+  if (session && !isSuperAdmin) {
     router.push("/dashboard");
     return null;
   }
@@ -198,14 +199,20 @@ export default function UsersPage() {
                   <TableCell>{user.email}</TableCell>
                   <TableCell>
                     <Badge
-                      variant={user.role === "ADMIN" ? "default" : "secondary"}
+                      variant="secondary"
                       className={
-                        user.role === "ADMIN"
-                          ? "bg-[#F97316] text-white hover:bg-[#EA580C]"
+                        user.role === "SUPER_ADMIN"
+                          ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                          : user.role === "ADMIN"
+                          ? "bg-blue-600 text-white hover:bg-blue-700"
                           : ""
                       }
                     >
-                      {user.role === "ADMIN" ? "Admin" : "Użytkownik"}
+                      {user.role === "SUPER_ADMIN"
+                        ? "Super Admin"
+                        : user.role === "ADMIN"
+                        ? "Admin"
+                        : "Użytkownik"}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -311,6 +318,7 @@ export default function UsersPage() {
                 <SelectContent>
                   <SelectItem value="USER">Użytkownik</SelectItem>
                   <SelectItem value="ADMIN">Admin</SelectItem>
+                  <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>

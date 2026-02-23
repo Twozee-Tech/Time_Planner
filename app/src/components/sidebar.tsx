@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { LayoutDashboard, FolderKanban, Users, Shield, LogOut, KeyRound } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Users, Shield, LogOut, KeyRound, Users2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AmplitivLogo } from "@/components/amplitiv-logo";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,8 @@ export function Sidebar() {
 
   const userRole = (session?.user as { role?: string } | undefined)?.role;
   const userId = (session?.user as { id?: string } | undefined)?.id;
-  const isAdmin = userRole === "ADMIN";
+  const isSuperAdmin = userRole === "SUPER_ADMIN";
+  const isAdmin = userRole === "ADMIN" || userRole === "SUPER_ADMIN";
 
   async function handlePasswordChange(e: React.FormEvent) {
     e.preventDefault();
@@ -96,7 +97,21 @@ export function Sidebar() {
               </Link>
             );
           })}
-          {isAdmin && (
+          {isSuperAdmin && (
+            <Link
+              href="/teams"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                pathname.startsWith("/teams")
+                  ? "bg-[#F97316] text-white"
+                  : "text-white/70 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <Users2 className="h-5 w-5" />
+              Teamy
+            </Link>
+          )}
+          {isSuperAdmin && (
             <Link
               href="/users"
               className={cn(
@@ -117,6 +132,11 @@ export function Sidebar() {
             <div className="truncate">
               <div className="text-sm font-medium truncate">{session?.user?.name}</div>
               <div className="text-xs text-white/50 truncate">{session?.user?.email}</div>
+              <div className="text-xs mt-0.5">
+                {isSuperAdmin && <span className="text-indigo-300">Super Admin</span>}
+                {userRole === "ADMIN" && <span className="text-blue-300">Admin</span>}
+                {userRole === "USER" && <span className="text-white/40">Użytkownik</span>}
+              </div>
             </div>
             <div className="flex gap-1">
               <button

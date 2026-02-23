@@ -49,14 +49,23 @@ export const userCreateSchema = z.object({
   name: z.string().min(1, "Imię i nazwisko jest wymagane"),
   email: z.string().email("Nieprawidłowy adres email"),
   password: z.string().min(6, "Hasło musi mieć co najmniej 6 znaków"),
-  role: z.enum(["ADMIN", "USER"]).optional(),
+  role: z.enum(["SUPER_ADMIN", "ADMIN", "USER"]).optional(),
 });
 
 export const userUpdateSchema = z.object({
   name: z.string().min(1, "Imię i nazwisko jest wymagane").optional(),
   email: z.string().email("Nieprawidłowy adres email").optional(),
-  role: z.enum(["ADMIN", "USER"]).optional(),
+  role: z.enum(["SUPER_ADMIN", "ADMIN", "USER"]).optional(),
 });
+
+export const teamSchema = z.object({
+  name: z.string().min(1, "Nazwa jest wymagana"),
+  description: z.string().optional(),
+  isActive: z.boolean().optional(),
+  sortOrder: z.number().optional(),
+});
+
+export type TeamInput = z.infer<typeof teamSchema>;
 
 export const passwordChangeSchema = z.object({
   oldPassword: z.string().optional(),

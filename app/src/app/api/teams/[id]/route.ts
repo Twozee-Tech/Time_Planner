@@ -1,36 +1,31 @@
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { userUpdateSchema } from "@/lib/validators";
-import { isAdmin } from "@/lib/auth-utils";
+import { teamSchema } from "@/lib/validators";
+import { isSuperAdmin } from "@/lib/auth-utils";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const token = await getToken({ req: request as never, secret: process.env.NEXTAUTH_SECRET });
-  if (!token || !isAdmin(token.role as string)) {
+  if (!token || !isSuperAdmin(token.role as string)) {
     return NextResponse.json({ error: "Brak uprawnień" }, { status: 403 });
   }
 
   const { id } = await params;
-  const user = await prisma.user.findUnique({
+  const team = await prisma.team.findUnique({
     where: { id },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      createdAt: true,
-      updatedAt: true,
+    include: {
+      _count: { select: { members: true, projects: true, users: true } },
     },
   });
 
-  if (!user) {
-    return NextResponse.json({ error: "Nie znaleziono użytkownika" }, { status: 404 });
+  if (!team) {
+    return NextResponse.json({ error: "Nie znaleziono teamu" }, { status: 404 });
   }
 
-  return NextResponse.json(user);
+  return NextResponse.json(team);
 }
 
 export async function PUT(
@@ -38,41 +33,27 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const token = await getToken({ req: request as never, secret: process.env.NEXTAUTH_SECRET });
-  if (!token || !isAdmin(token.role as string)) {
+  if (!token || !isSuperAdmin(token.role as string)) {
     return NextResponse.json({ error: "Brak uprawnień" }, { status: 403 });
   }
 
   const { id } = await params;
   const body = await request.json();
-  const parsed = userUpdateSchema.safeParse(body);
+  const parsed = teamSchema.safeParse(body);
 
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  if (parsed.data.email) {
-    const existing = await prisma.user.findFirst({
-      where: { email: parsed.data.email, NOT: { id } },
-    });
-    if (existing) {
-      return NextResponse.json({ error: "Użytkownik z tym adresem email już istnieje" }, { status: 409 });
-    }
-  }
-
-  const user = await prisma.user.update({
+  const team = await prisma.team.update({
     where: { id },
     data: parsed.data,
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      createdAt: true,
-      updatedAt: true,
+    include: {
+      _count: { select: { members: true, projects: true, users: true } },
     },
   });
 
-  return NextResponse.json(user);
+  return NextResponse.json(team);
 }
 
 export async function DELETE(
@@ -80,16 +61,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const token = await getToken({ req: request as never, secret: process.env.NEXTAUTH_SECRET });
-  if (!token || !isAdmin(token.role as string)) {
+  if (!token || !isSuperAdmin(token.role as string)) {
     return NextResponse.json({ error: "Brak uprawnień" }, { status: 403 });
   }
 
   const { id } = await params;
-
-  if (token.sub === id) {
-    return NextResponse.json({ error: "Nie można usunąć własnego konta" }, { status: 400 });
-  }
-
-  await prisma.user.delete({ where: { id } });
+  await prisma.team.delete({ where: { id } });
   return NextResponse.json({ success: true });
 }

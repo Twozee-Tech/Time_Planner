@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum Role {
+  SUPER_ADMIN
   ADMIN
   USER
 }
@@ -19,13 +20,14 @@ enum Workload {
 }
 
 model User {
-  id             String   @id @default(cuid())
+  id             String     @id @default(cuid())
   name           String
-  email          String   @unique
+  email          String     @unique
   hashedPassword String
-  role           Role     @default(USER)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  role           Role       @default(USER)
+  teamUsers      TeamUser[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 }
 
 model Section {
@@ -47,20 +49,22 @@ model Person {
   isActive    Boolean      @default(true)
   sortOrder   Int          @default(0)
   assignments Assignment[]
+  teamMembers TeamMember[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
 
 model Project {
-  id          String       @id @default(cuid())
-  projectId   String       @unique
-  name        String
-  label       String?
-  color       String?
-  isActive    Boolean      @default(true)
-  assignments Assignment[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id           String        @id @default(cuid())
+  projectId    String        @unique
+  name         String
+  label        String?
+  color        String?
+  isActive     Boolean       @default(true)
+  assignments  Assignment[]
+  teamProjects TeamProject[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 }
 
 model Assignment {
@@ -75,4 +79,47 @@ model Assignment {
 
   @@unique([personId, projectId, date])
   @@index([personId, date])
+}
+
+model Team {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  description String?
+  isActive    Boolean       @default(true)
+  sortOrder   Int           @default(0)
+  members     TeamMember[]
+  projects    TeamProject[]
+  users       TeamUser[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model TeamMember {
+  id       String @id @default(cuid())
+  team     Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId   String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId String
+
+  @@unique([teamId, personId])
+}
+
+model TeamProject {
+  id        String  @id @default(cuid())
+  team      Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId    String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  @@unique([teamId, projectId])
+}
+
+model TeamUser {
+  id     String @id @default(cuid())
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  @@unique([teamId, userId])
 }

@@ -3,6 +3,7 @@ import { getToken } from "next-auth/jwt";
 import { compare, hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { passwordChangeSchema } from "@/lib/validators";
+import { isAdmin } from "@/lib/auth-utils";
 
 export async function PUT(
   request: Request,
@@ -14,10 +15,10 @@ export async function PUT(
   }
 
   const { id } = await params;
-  const isAdmin = token.role === "ADMIN";
+  const isAdminUser = isAdmin(token.role as string);
   const isSelf = token.sub === id;
 
-  if (!isAdmin && !isSelf) {
+  if (!isAdminUser && !isSelf) {
     return NextResponse.json({ error: "Brak uprawnień" }, { status: 403 });
   }
 
@@ -29,7 +30,7 @@ export async function PUT(
   }
 
   // Non-admin changing own password must provide old password
-  if (!isAdmin || isSelf) {
+  if (!isAdminUser || isSelf) {
     if (!parsed.data.oldPassword) {
       return NextResponse.json({ error: "Obecne hasło jest wymagane" }, { status: 400 });
     }

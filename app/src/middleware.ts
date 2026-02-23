@@ -2,7 +2,7 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const protectedPaths = ["/dashboard", "/person", "/projects", "/people", "/users", "/api/assignments", "/api/projects", "/api/persons", "/api/sections", "/api/holidays", "/api/users"];
+const protectedPaths = ["/dashboard", "/person", "/projects", "/people", "/users", "/teams", "/api/assignments", "/api/projects", "/api/persons", "/api/sections", "/api/holidays", "/api/users", "/api/teams"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -22,5 +22,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/person/:path*", "/projects/:path*", "/people/:path*", "/users/:path*", "/api/assignments/:path*", "/api/projects/:path*", "/api/persons/:path*", "/api/sections/:path*", "/api/holidays/:path*", "/api/users/:path*"],
+  matcher: ["/dashboard/:path*", "/person/:path*", "/projects/:path*", "/people/:path*", "/users/:path*", "/teams/:path*", "/api/assignments/:path*", "/api/projects/:path*", "/api/persons/:path*", "/api/sections/:path*", "/api/holidays/:path*", "/api/users/:path*", "/api/teams/:path*"],
 };

@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { assignmentBulkSchema } from "@/lib/validators";
+import { isSuperAdmin } from "@/lib/auth-utils";
 
 export async function GET(request: Request) {
+  const token = await getToken({ req: request as never, secret: process.env.NEXTAUTH_SECRET });
+  if (!token) {
+    return NextResponse.json({ error: "Nieautoryzowany" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
@@ -21,6 +28,16 @@ export async function GET(request: Request) {
 
   if (personId) {
     where.personId = personId;
+  } else if (!isSuperAdmin(token.role as string)) {
+    const userTeamIds = (
+      await prisma.teamUser.findMany({ where: { userId: token.sub as string } })
+    ).map((t) => t.teamId);
+
+    const personIds = (
+      await prisma.teamMember.findMany({ where: { teamId: { in: userTeamIds } } })
+    ).map((m) => m.personId);
+
+    where.personId = { in: personIds };
   }
 
   const assignments = await prisma.assignment.findMany({
