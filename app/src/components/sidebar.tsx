@@ -111,7 +111,7 @@ export function Sidebar() {
               Teamy
             </Link>
           )}
-          {isSuperAdmin && (
+          {isAdmin && (
             <Link
               href="/users"
               className={cn(

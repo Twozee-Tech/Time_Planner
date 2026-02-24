@@ -208,7 +208,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-bold">Panel główny</h1>
-          {isSuperAdmin && teams.length > 0 && (
+          {isSuperAdmin && (
             <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
               <SelectTrigger className="w-48">
                 <SelectValue />

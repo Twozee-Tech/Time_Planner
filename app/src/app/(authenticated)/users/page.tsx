@@ -50,7 +50,7 @@ export default function UsersPage() {
       if (!r.ok) throw new Error("Brak uprawnień");
       return r.json();
     }),
-    enabled: isSuperAdmin,
+    enabled: isAdmin,
   });
 
   const createMutation = useMutation({
@@ -161,7 +161,7 @@ export default function UsersPage() {
     }
   }
 
-  if (session && !isSuperAdmin) {
+  if (session && !isAdmin) {
     router.push("/dashboard");
     return null;
   }
@@ -318,7 +318,7 @@ export default function UsersPage() {
                 <SelectContent>
                   <SelectItem value="USER">Użytkownik</SelectItem>
                   <SelectItem value="ADMIN">Admin</SelectItem>
-                  <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                  {isSuperAdmin && <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
