@@ -15,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, UserMinus } from "lucide-react";
+import { Plus, Pencil, UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 interface Section {
@@ -102,6 +102,22 @@ export default function PeoplePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["persons"] });
       toast.success("Osoba została dezaktywowana");
+    },
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetch(`/api/persons/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: true }),
+      }).then((r) => {
+        if (!r.ok) throw new Error("Błąd");
+        return r.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["persons"] });
+      toast.success("Osoba została przywrócona");
     },
   });
 
@@ -215,7 +231,7 @@ export default function PeoplePage() {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      {person.isActive && (
+                      {person.isActive ? (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -223,6 +239,16 @@ export default function PeoplePage() {
                           title="Dezaktywuj"
                         >
                           <UserMinus className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => reactivateMutation.mutate(person.id)}
+                          title="Przywróć"
+                          className="text-green-600 hover:text-green-700"
+                        >
+                          <UserPlus className="h-4 w-4" />
                         </Button>
                       )}
                     </div>

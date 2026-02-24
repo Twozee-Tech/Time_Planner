@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
@@ -68,9 +69,18 @@ const WORKLOAD_COLORS: Record<string, string> = {
   GREEN: "bg-green-400 text-white",
 };
 
+interface Team {
+  id: string;
+  name: string;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [startDate, setStartDate] = useState(() => getWeekStart(new Date()));
+
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
+  const isSuperAdmin = userRole === "SUPER_ADMIN";
 
   const days = useMemo(() => generateDays(startDate, NUM_WEEKS), [startDate]);
   const dateFrom = formatDateKey(days[0]);
@@ -87,6 +97,12 @@ export default function DashboardPage() {
     }
     return set;
   }, [days]);
+
+  const { data: teams = [] } = useQuery<Team[]>({
+    queryKey: ["teams"],
+    queryFn: () => fetch("/api/teams").then((r) => r.json()),
+    enabled: !isSuperAdmin,
+  });
 
   const { data: persons = [] } = useQuery<Person[]>({
     queryKey: ["persons"],
@@ -183,7 +199,14 @@ export default function DashboardPage() {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Panel główny</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Panel główny</h1>
+          {!isSuperAdmin && teams.length > 0 && (
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {teams.map((t) => t.name).join(", ")}
+            </p>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
