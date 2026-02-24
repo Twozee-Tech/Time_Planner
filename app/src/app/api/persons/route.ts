@@ -10,9 +10,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Nieautoryzowany" }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const teamId = searchParams.get("teamId");
+
   let personFilter: { id?: { in: string[] } } = {};
 
-  if (!isSuperAdmin(token.role as string)) {
+  if (isSuperAdmin(token.role as string)) {
+    // SUPER_ADMIN: optionally filter by a specific teamId
+    if (teamId) {
+      const personIds = (
+        await prisma.teamMember.findMany({ where: { teamId } })
+      ).map((m) => m.personId);
+      personFilter = { id: { in: personIds } };
+    }
+    // else: no filter — return all persons
+  } else {
     const userTeamIds = (
       await prisma.teamUser.findMany({ where: { userId: token.sub as string } })
     ).map((t) => t.teamId);

@@ -7,6 +7,9 @@ import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   generateDays,
   formatDateKey,
   getDayLabel,
@@ -81,6 +84,7 @@ export default function DashboardPage() {
 
   const userRole = (session?.user as { role?: string } | undefined)?.role;
   const isSuperAdmin = userRole === "SUPER_ADMIN";
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
 
   const days = useMemo(() => generateDays(startDate, NUM_WEEKS), [startDate]);
   const dateFrom = formatDateKey(days[0]);
@@ -101,12 +105,15 @@ export default function DashboardPage() {
   const { data: teams = [] } = useQuery<Team[]>({
     queryKey: ["teams"],
     queryFn: () => fetch("/api/teams").then((r) => r.json()),
-    enabled: !isSuperAdmin,
   });
 
+  const personsUrl = isSuperAdmin && selectedTeamId !== "all"
+    ? `/api/persons?teamId=${selectedTeamId}`
+    : "/api/persons";
+
   const { data: persons = [] } = useQuery<Person[]>({
-    queryKey: ["persons"],
-    queryFn: () => fetch("/api/persons").then((r) => r.json()),
+    queryKey: ["persons", selectedTeamId],
+    queryFn: () => fetch(personsUrl).then((r) => r.json()),
   });
 
   const { data: sections = [] } = useQuery<Section[]>({
@@ -199,12 +206,25 @@ export default function DashboardPage() {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <div>
+        <div className="flex items-center gap-4">
           <h1 className="text-2xl font-bold">Panel główny</h1>
+          {isSuperAdmin && teams.length > 0 && (
+            <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Wszystkie teamy</SelectItem>
+                {teams.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {!isSuperAdmin && teams.length > 0 && (
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <span className="text-sm text-muted-foreground">
               {teams.map((t) => t.name).join(", ")}
-            </p>
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2">
