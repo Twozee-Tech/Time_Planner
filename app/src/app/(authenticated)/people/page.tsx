@@ -36,11 +36,9 @@ interface Person {
   firstName: string;
   lastName: string;
   sectionId: string;
-  sdmId: string | null;
   isActive: boolean;
   sortOrder: number;
   section: Section;
-  sdm: { id: string; firstName: string; lastName: string } | null;
   teamMembers: { team: Team }[];
 }
 
@@ -53,7 +51,6 @@ export default function PeoplePage() {
     firstName: "",
     lastName: "",
     sectionId: "",
-    sdmId: null as string | null,
     teamIds: [] as string[],
   });
 
@@ -141,7 +138,7 @@ export default function PeoplePage() {
 
   function openCreate() {
     setEditing(null);
-    setForm({ firstName: "", lastName: "", sectionId: sections[0]?.id || "", sdmId: null, teamIds: [] });
+    setForm({ firstName: "", lastName: "", sectionId: sections[0]?.id || "", teamIds: [] });
     setDialogOpen(true);
   }
 
@@ -151,7 +148,6 @@ export default function PeoplePage() {
       firstName: person.firstName,
       lastName: person.lastName,
       sectionId: person.sectionId,
-      sdmId: person.sdmId,
       teamIds: person.teamMembers.map((tm) => tm.team.id),
     });
     setDialogOpen(true);
@@ -186,8 +182,6 @@ export default function PeoplePage() {
     people: persons.filter((p) => p.sectionId === section.id),
   }));
 
-  const activePeople = persons.filter((p) => p.isActive);
-
   return (
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-6">
@@ -209,7 +203,7 @@ export default function PeoplePage() {
             <TableRow>
               <TableHead>Imię i nazwisko</TableHead>
               <TableHead>Sekcja</TableHead>
-              {isSuperAdmin && <TableHead>Zespół</TableHead>}
+              <TableHead>Zespół</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-24">Akcje</TableHead>
             </TableRow>
@@ -232,21 +226,19 @@ export default function PeoplePage() {
                     </span>
                   </TableCell>
                   <TableCell>{person.section.name}</TableCell>
-                  {isSuperAdmin && (
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {person.teamMembers.length === 0 ? (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        ) : (
-                          person.teamMembers.map((tm) => (
-                            <Badge key={tm.team.id} variant="secondary" className="text-xs">
-                              {tm.team.name}
-                            </Badge>
-                          ))
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {person.teamMembers.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        person.teamMembers.map((tm) => (
+                          <Badge key={tm.team.id} variant="secondary" className="text-xs">
+                            {tm.team.name}
+                          </Badge>
+                        ))
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant={person.isActive ? "default" : "secondary"}
@@ -339,27 +331,6 @@ export default function PeoplePage() {
                       {s.name}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>SDM (Scrum Development Manager)</Label>
-              <Select
-                value={form.sdmId || "none"}
-                onValueChange={(v) => setForm({ ...form, sdmId: v === "none" ? null : v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Wybierz SDM" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Brak</SelectItem>
-                  {activePeople
-                    .filter((p) => p.id !== editing?.id)
-                    .map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.firstName} {p.lastName}
-                      </SelectItem>
-                    ))}
                 </SelectContent>
               </Select>
             </div>
