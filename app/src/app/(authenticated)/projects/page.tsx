@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,9 +21,21 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Archive } from "lucide-react";
 import { toast } from "sonner";
+
+interface Team {
+  id: string;
+  name: string;
+}
 
 interface Project {
   id: string;
@@ -31,17 +44,29 @@ interface Project {
   label: string | null;
   color: string | null;
   isActive: boolean;
+  teamProjects: { team: Team }[];
 }
 
 export default function ProjectsPage() {
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
   const [form, setForm] = useState({ projectId: "", name: "", label: "" });
+  const [filterTeamId, setFilterTeamId] = useState<string>("all");
+
+  const isSuperAdmin =
+    (session?.user as { role?: string } | undefined)?.role === "SUPER_ADMIN";
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ["projects"],
     queryFn: () => fetch("/api/projects").then((r) => r.json()),
+  });
+
+  const { data: teams = [] } = useQuery<Team[]>({
+    queryKey: ["teams"],
+    queryFn: () => fetch("/api/teams").then((r) => r.json()),
+    enabled: isSuperAdmin,
   });
 
   const createMutation = useMutation({
@@ -122,20 +147,42 @@ export default function ProjectsPage() {
     }
   }
 
-  const activeProjects = projects.filter((p) => p.isActive);
-  const inactiveProjects = projects.filter((p) => !p.isActive);
+  const filtered = projects.filter((p) => {
+    if (filterTeamId === "all") return true;
+    return p.teamProjects.some((tp) => tp.team.id === filterTeamId);
+  });
+
+  const activeProjects = filtered.filter((p) => p.isActive);
+  const inactiveProjects = filtered.filter((p) => !p.isActive);
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">Projekty</h1>
           <p className="text-muted-foreground mt-1">Zarządzanie projektami</p>
         </div>
-        <Button onClick={openCreate} className="bg-[#F97316] hover:bg-[#EA580C]">
-          <Plus className="h-4 w-4 mr-2" />
-          Dodaj projekt
-        </Button>
+        <div className="flex items-center gap-3">
+          {isSuperAdmin && teams.length > 0 && (
+            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
+              <SelectTrigger className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Wszystkie teamy</SelectItem>
+                {teams.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button onClick={openCreate} className="bg-[#F97316] hover:bg-[#EA580C]">
+            <Plus className="h-4 w-4 mr-2" />
+            Dodaj projekt
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -148,6 +195,7 @@ export default function ProjectsPage() {
                 <TableHead>ID Projektu</TableHead>
                 <TableHead>Nazwa</TableHead>
                 <TableHead>Label</TableHead>
+                {isSuperAdmin && <TableHead>Zespół</TableHead>}
                 <TableHead>Status</TableHead>
                 <TableHead className="w-24">Akcje</TableHead>
               </TableRow>
@@ -158,6 +206,25 @@ export default function ProjectsPage() {
                   <TableCell className="font-mono text-sm">{project.projectId}</TableCell>
                   <TableCell className="font-medium">{project.name}</TableCell>
                   <TableCell>{project.label || "—"}</TableCell>
+                  {isSuperAdmin && (
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {project.teamProjects.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          project.teamProjects.map((tp) => (
+                            <Badge
+                              key={tp.team.id}
+                              variant="secondary"
+                              className="text-xs"
+                            >
+                              {tp.team.name}
+                            </Badge>
+                          ))
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100">
                       Aktywny
@@ -190,6 +257,17 @@ export default function ProjectsPage() {
                   <TableCell className="font-mono text-sm">{project.projectId}</TableCell>
                   <TableCell className="font-medium">{project.name}</TableCell>
                   <TableCell>{project.label || "—"}</TableCell>
+                  {isSuperAdmin && (
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {project.teamProjects.map((tp) => (
+                          <Badge key={tp.team.id} variant="secondary" className="text-xs">
+                            {tp.team.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Badge variant="secondary">Nieaktywny</Badge>
                   </TableCell>
@@ -208,9 +286,9 @@ export default function ProjectsPage() {
             </TableBody>
           </Table>
 
-          {projects.length === 0 && (
+          {filtered.length === 0 && (
             <p className="text-center text-muted-foreground py-8">
-              Brak projektów. Dodaj pierwszy projekt.
+              Brak projektów.
             </p>
           )}
         </>
