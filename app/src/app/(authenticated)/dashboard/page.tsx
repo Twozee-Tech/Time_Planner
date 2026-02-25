@@ -1,14 +1,19 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import {
   generateDays,
   formatDateKey,
@@ -18,7 +23,9 @@ import {
   getWeekStart,
 } from "@/lib/date-utils";
 import { getHolidaySet, isWeekend, isNonWorkingDay } from "@/lib/holidays";
+import { useDragSelect } from "@/hooks/useDragSelect";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const NUM_WEEKS = 8;
 
@@ -36,6 +43,14 @@ interface Assignment {
     label: string | null;
     color: string | null;
   };
+}
+
+interface Project {
+  id: string;
+  projectId: string;
+  name: string;
+  label: string | null;
+  isActive: boolean;
 }
 
 interface Section {
@@ -72,6 +87,12 @@ const WORKLOAD_COLORS: Record<string, string> = {
   GREEN: "bg-green-400 text-white",
 };
 
+const WORKLOAD_OPTIONS = [
+  { value: "RED" as const, label: "Przeciążony", className: "bg-red-500 hover:bg-red-600 text-white" },
+  { value: "YELLOW" as const, label: "Pełne obciążenie", className: "bg-yellow-400 hover:bg-yellow-500 text-yellow-900" },
+  { value: "GREEN" as const, label: "Dostępny", className: "bg-green-500 hover:bg-green-600 text-white" },
+];
+
 interface Team {
   id: string;
   name: string;
@@ -79,6 +100,7 @@ interface Team {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: session } = useSession();
   const [startDate, setStartDate] = useState(() => getWeekStart(new Date()));
 
@@ -101,6 +123,34 @@ export default function DashboardPage() {
     }
     return set;
   }, [days]);
+
+  // Drag-select state
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
+  const [primaryProjectId, setPrimaryProjectId] = useState<string>("");
+  const [panelWorkload, setPanelWorkload] = useState<"RED" | "YELLOW" | "GREEN">("YELLOW");
+  const [projectFilter, setProjectFilter] = useState("");
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  const {
+    selectedDates,
+    isDragging,
+    handlePointerDown,
+    handlePointerEnter,
+    handlePointerUp,
+    clearSelection,
+    setAllDates,
+  } = useDragSelect();
+
+  // Working days in current view (for drag-select ordering)
+  const workingDays = useMemo(
+    () => days.filter((d) => !isNonWorkingDay(d, holidaySet)),
+    [days, holidaySet]
+  );
+
+  useEffect(() => {
+    setAllDates(workingDays.map(formatDateKey));
+  }, [workingDays, setAllDates]);
 
   const { data: teams = [] } = useQuery<Team[]>({
     queryKey: ["teams"],
@@ -139,6 +189,13 @@ export default function DashboardPage() {
         r.json()
       ),
   });
+
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ["projects"],
+    queryFn: () => fetch("/api/projects").then((r) => r.json()),
+  });
+
+  const activeProjects = projects.filter((p) => p.isActive);
 
   // Build lookup map: "personId-date" -> Assignment[]
   const assignmentMap = useMemo(() => {
@@ -203,6 +260,110 @@ export default function DashboardPage() {
     return result;
   }, [yearAssignments, activePersons, totalMd]);
 
+  // Open assignment panel when drag ends with a selection
+  const prevIsDraggingRef = useRef(false);
+  useEffect(() => {
+    if (prevIsDraggingRef.current && !isDragging && selectedDates.size > 0 && selectedPersonId) {
+      const firstDate = Array.from(selectedDates).sort()[0];
+      const key = `${selectedPersonId}-${firstDate}`;
+      const firstAssignments = assignmentMap.get(key) || [];
+      if (firstAssignments.length > 0) {
+        setSelectedProjects(new Set(firstAssignments.map((a) => a.projectId)));
+        setPrimaryProjectId(firstAssignments.find((a) => a.isPrimary)?.projectId || "");
+        setPanelWorkload(firstAssignments[0].workload);
+      } else {
+        setSelectedProjects(new Set());
+        setPrimaryProjectId("");
+        setPanelWorkload("YELLOW");
+      }
+      setPanelOpen(true);
+    }
+    prevIsDraggingRef.current = isDragging;
+  }, [isDragging]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveMutation = useMutation({
+    mutationFn: (data: {
+      personId: string;
+      dates: string[];
+      projectIds: string[];
+      primaryProjectId: string;
+      workload: string;
+    }) =>
+      fetch("/api/assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then((r) => {
+        if (!r.ok) throw new Error("Błąd zapisu");
+        return r.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assignments"] });
+      closePanel();
+      toast.success("Przypisania zostały zapisane");
+    },
+    onError: () => toast.error("Nie udało się zapisać przypisań"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (data: { personId: string; dates: string[] }) =>
+      fetch("/api/assignments/bulk", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then((r) => {
+        if (!r.ok) throw new Error("Błąd");
+        return r.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assignments"] });
+      closePanel();
+      toast.success("Przypisania zostały usunięte");
+    },
+  });
+
+  function closePanel() {
+    setPanelOpen(false);
+    clearSelection();
+    setSelectedPersonId(null);
+    setProjectFilter("");
+  }
+
+  function handleSave() {
+    if (!selectedPersonId || selectedDates.size === 0 || selectedProjects.size === 0) return;
+    saveMutation.mutate({
+      personId: selectedPersonId,
+      dates: Array.from(selectedDates),
+      projectIds: Array.from(selectedProjects),
+      primaryProjectId: primaryProjectId || Array.from(selectedProjects)[0],
+      workload: panelWorkload,
+    });
+  }
+
+  function handleDelete() {
+    if (!selectedPersonId || selectedDates.size === 0) return;
+    deleteMutation.mutate({
+      personId: selectedPersonId,
+      dates: Array.from(selectedDates),
+    });
+  }
+
+  function toggleProject(projectId: string) {
+    const next = new Set(selectedProjects);
+    if (next.has(projectId)) {
+      next.delete(projectId);
+      if (primaryProjectId === projectId) {
+        setPrimaryProjectId(Array.from(next)[0] || "");
+      }
+    } else {
+      next.add(projectId);
+      if (next.size === 1) setPrimaryProjectId(projectId);
+    }
+    setSelectedProjects(next);
+  }
+
+  const selectedPerson = persons.find((p) => p.id === selectedPersonId);
+
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
@@ -252,7 +413,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="overflow-x-auto border rounded-lg bg-white">
+      <div
+        className="overflow-x-auto border rounded-lg bg-white"
+        style={{ touchAction: "none" }}
+        onPointerUp={handlePointerUp}
+      >
         <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
           <colgroup>
             <col style={{ width: "40px", minWidth: "40px" }} />
@@ -349,17 +514,28 @@ export default function DashboardPage() {
                       const key = `${person.id}-${dateStr}`;
                       const cellAssignments = assignmentMap.get(key) || [];
                       const primary = cellAssignments.find((a) => a.isPrimary);
-                      const workload = primary?.workload || cellAssignments[0]?.workload;
+                      const cellWorkload = primary?.workload || cellAssignments[0]?.workload;
+                      const isSelected = selectedDates.has(dateStr) && selectedPersonId === person.id;
 
                       return (
                         <td
                           key={di}
                           className={cn(
-                            "border-r text-center text-[9px] leading-tight p-0 h-8 overflow-hidden",
-                            nonWorking && "bg-gray-200",
-                            !nonWorking && workload && WORKLOAD_COLORS[workload],
-                            isToday(day) && "ring-2 ring-inset ring-[#F97316]"
+                            "border-r text-center text-[9px] leading-tight p-0 h-8 overflow-hidden select-none",
+                            nonWorking ? "bg-gray-200" : "cursor-crosshair",
+                            !nonWorking && cellWorkload && WORKLOAD_COLORS[cellWorkload],
+                            !nonWorking && isSelected && "ring-2 ring-inset ring-orange-500",
+                            isToday(day) && "ring-2 ring-inset ring-[#F97316]",
                           )}
+                          onPointerDown={(e) => {
+                            if (nonWorking || panelOpen) return;
+                            setSelectedPersonId(person.id);
+                            handlePointerDown(dateStr, e);
+                          }}
+                          onPointerEnter={() => {
+                            if (nonWorking || selectedPersonId !== person.id) return;
+                            handlePointerEnter(dateStr);
+                          }}
                           title={
                             cellAssignments.length > 0
                               ? cellAssignments.map((a) => a.project.name).join(", ")
@@ -381,6 +557,125 @@ export default function DashboardPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Assignment dialog */}
+      <Dialog open={panelOpen} onOpenChange={(open) => { if (!open) closePanel(); }}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col gap-4">
+          <DialogHeader>
+            <DialogTitle>Przypisanie projektów</DialogTitle>
+          </DialogHeader>
+
+          {selectedPerson && (
+            <p className="text-sm text-muted-foreground -mt-2">
+              <span className="font-medium text-foreground">
+                {selectedPerson.firstName} {selectedPerson.lastName}
+              </span>
+              {" · "}
+              {selectedDates.size} {selectedDates.size === 1 ? "dzień" : "dni"}
+            </p>
+          )}
+
+          {/* Workload selector */}
+          <div>
+            <Label className="text-sm font-medium mb-2 block">Obciążenie</Label>
+            <div className="flex gap-2">
+              {WORKLOAD_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setPanelWorkload(opt.value)}
+                  className={cn(
+                    "flex-1 text-xs py-2 px-2 rounded-lg font-medium transition-all",
+                    opt.className,
+                    panelWorkload === opt.value
+                      ? "ring-2 ring-offset-2 ring-gray-900"
+                      : "opacity-60"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Project list */}
+          <div className="flex flex-col min-h-0 flex-1">
+            <Label className="text-sm font-medium mb-2 block">Projekty</Label>
+            <input
+              type="text"
+              placeholder="Szukaj projektu..."
+              value={projectFilter}
+              onChange={(e) => setProjectFilter(e.target.value)}
+              className="w-full mb-2 px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:border-transparent"
+            />
+            <div className="overflow-y-auto space-y-1.5 max-h-64">
+              {activeProjects
+                .filter((p) => {
+                  if (selectedProjects.has(p.id)) return true;
+                  if (!projectFilter) return true;
+                  const q = projectFilter.toLowerCase();
+                  return (
+                    p.name.toLowerCase().includes(q) ||
+                    p.projectId.toLowerCase().includes(q) ||
+                    (p.label && p.label.toLowerCase().includes(q))
+                  );
+                })
+                .map((project) => (
+                  <div key={project.id} className="flex items-center gap-2 py-0.5">
+                    <Checkbox
+                      id={`proj-${project.id}`}
+                      checked={selectedProjects.has(project.id)}
+                      onCheckedChange={() => toggleProject(project.id)}
+                      className="shrink-0"
+                    />
+                    <label
+                      htmlFor={`proj-${project.id}`}
+                      className="flex-1 text-sm cursor-pointer truncate"
+                      title={project.name}
+                    >
+                      {project.label || project.name}
+                    </label>
+                    {selectedProjects.has(project.id) && (
+                      <button
+                        onClick={() => setPrimaryProjectId(project.id)}
+                        className={cn(
+                          "shrink-0 text-[10px] px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap",
+                          primaryProjectId === project.id
+                            ? "bg-[#F97316] text-white border-[#F97316]"
+                            : "text-gray-500 border-gray-300 hover:border-[#F97316]"
+                        )}
+                      >
+                        {primaryProjectId === project.id ? "Główny" : "Ustaw główny"}
+                      </button>
+                    )}
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="space-y-2 pt-2 border-t">
+            <Button
+              onClick={handleSave}
+              disabled={selectedProjects.size === 0 || saveMutation.isPending}
+              className="w-full bg-[#F97316] hover:bg-[#EA580C]"
+            >
+              {saveMutation.isPending ? "Zapisywanie..." : "Zapisz"}
+            </Button>
+            <Button
+              onClick={handleDelete}
+              variant="outline"
+              className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+              disabled={deleteMutation.isPending}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Usuń przypisania
+            </Button>
+            <Button onClick={closePanel} variant="ghost" className="w-full">
+              Anuluj
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
