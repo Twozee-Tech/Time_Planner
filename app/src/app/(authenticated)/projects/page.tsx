@@ -156,7 +156,7 @@ export default function ProjectsPage() {
   const inactiveProjects = filtered.filter((p) => !p.isActive);
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">Projekty</h1>
@@ -189,22 +189,23 @@ export default function ProjectsPage() {
         <div className="text-muted-foreground">Ładowanie...</div>
       ) : (
         <>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ID Projektu</TableHead>
-                <TableHead>Nazwa</TableHead>
-                <TableHead>Label</TableHead>
-                {isSuperAdmin && <TableHead>Zespół</TableHead>}
-                <TableHead>Status</TableHead>
-                <TableHead className="w-24">Akcje</TableHead>
+                <TableHead className="w-28">ID Projektu</TableHead>
+                <TableHead className="max-w-xs">Nazwa</TableHead>
+                <TableHead className="w-44">Label</TableHead>
+                {isSuperAdmin && <TableHead className="w-36">Zespół</TableHead>}
+                <TableHead className="w-24">Status</TableHead>
+                <TableHead className="w-20">Akcje</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {activeProjects.map((project) => (
                 <TableRow key={project.id}>
                   <TableCell className="font-mono text-sm">{project.projectId}</TableCell>
-                  <TableCell className="font-medium">{project.name}</TableCell>
+                  <TableCell className="font-medium max-w-xs truncate" title={project.name}>{project.name}</TableCell>
                   <TableCell>{project.label || "—"}</TableCell>
                   {isSuperAdmin && (
                     <TableCell>
@@ -255,7 +256,7 @@ export default function ProjectsPage() {
               {inactiveProjects.map((project) => (
                 <TableRow key={project.id} className="opacity-50">
                   <TableCell className="font-mono text-sm">{project.projectId}</TableCell>
-                  <TableCell className="font-medium">{project.name}</TableCell>
+                  <TableCell className="font-medium max-w-xs truncate" title={project.name}>{project.name}</TableCell>
                   <TableCell>{project.label || "—"}</TableCell>
                   {isSuperAdmin && (
                     <TableCell>
@@ -286,6 +287,7 @@ export default function ProjectsPage() {
             </TableBody>
           </Table>
 
+          </div>
           {filtered.length === 0 && (
             <p className="text-center text-muted-foreground py-8">
               Brak projektów.
