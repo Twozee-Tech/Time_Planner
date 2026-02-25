@@ -364,6 +364,22 @@ export default function DashboardPage() {
 
   const selectedPerson = persons.find((p) => p.id === selectedPersonId);
 
+  // Track last entered date to avoid redundant selection updates during pointermove
+  const lastEnteredRef = useRef<string | null>(null);
+
+  function handleContainerPointerMove(e: React.PointerEvent) {
+    if (!isDragging || !selectedPersonId) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const cell = el?.closest("[data-date]") as HTMLElement | null;
+    if (!cell) return;
+    const dateKey = cell.dataset.date;
+    const personId = cell.dataset.personid;
+    if (!dateKey || personId !== selectedPersonId) return;
+    if (dateKey === lastEnteredRef.current) return;
+    lastEnteredRef.current = dateKey;
+    handlePointerEnter(dateKey);
+  }
+
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
@@ -416,7 +432,8 @@ export default function DashboardPage() {
       <div
         className="overflow-x-auto border rounded-lg bg-white"
         style={{ touchAction: "none" }}
-        onPointerUp={handlePointerUp}
+        onPointerUp={() => { lastEnteredRef.current = null; handlePointerUp(); }}
+        onPointerMove={handleContainerPointerMove}
       >
         <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
           <colgroup>
@@ -520,6 +537,8 @@ export default function DashboardPage() {
                       return (
                         <td
                           key={di}
+                          data-date={dateStr}
+                          data-personid={person.id}
                           className={cn(
                             "border-r text-center text-[9px] leading-tight p-0 h-8 overflow-hidden select-none",
                             nonWorking ? "bg-gray-200" : "cursor-crosshair",
@@ -529,12 +548,9 @@ export default function DashboardPage() {
                           )}
                           onPointerDown={(e) => {
                             if (nonWorking || panelOpen) return;
+                            lastEnteredRef.current = dateStr;
                             setSelectedPersonId(person.id);
                             handlePointerDown(dateStr, e);
-                          }}
-                          onPointerEnter={() => {
-                            if (nonWorking || selectedPersonId !== person.id) return;
-                            handlePointerEnter(dateStr);
                           }}
                           title={
                             cellAssignments.length > 0
