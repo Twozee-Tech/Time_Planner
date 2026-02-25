@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { personSchema } from "@/lib/validators";
-import { isSuperAdmin } from "@/lib/auth-utils";
+import { isSuperAdmin, isAdmin } from "@/lib/auth-utils";
 
 export async function GET(request: Request) {
   const token = await getToken({ req: request as never, secret: process.env.NEXTAUTH_SECRET });
@@ -41,6 +41,7 @@ export async function GET(request: Request) {
     include: {
       section: true,
       sdm: true,
+      teamMembers: { include: { team: { select: { id: true, name: true } } } },
     },
     orderBy: [
       { section: { sortOrder: "asc" } },
@@ -52,17 +53,39 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const token = await getToken({ req: request as never, secret: process.env.NEXTAUTH_SECRET });
+  if (!token || !isAdmin(token.role as string)) {
+    return NextResponse.json({ error: "Brak uprawnień" }, { status: 403 });
+  }
+
   const body = await request.json();
-  const parsed = personSchema.safeParse(body);
+  const { teamIds = [], ...personData } = body;
+  const parsed = personSchema.safeParse(personData);
 
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  // ADMIN can only assign to their own teams
+  let allowedTeamIds: string[] = teamIds;
+  if (!isSuperAdmin(token.role as string) && teamIds.length > 0) {
+    const userTeamIds = (
+      await prisma.teamUser.findMany({ where: { userId: token.sub as string } })
+    ).map((t) => t.teamId);
+    allowedTeamIds = (teamIds as string[]).filter((id) => userTeamIds.includes(id));
+  }
+
   const person = await prisma.person.create({
     data: parsed.data,
-    include: { section: true, sdm: true },
+    include: { section: true, sdm: true, teamMembers: { include: { team: { select: { id: true, name: true } } } } },
   });
+
+  if (allowedTeamIds.length > 0) {
+    await prisma.teamMember.createMany({
+      data: allowedTeamIds.map((teamId) => ({ teamId, personId: person.id })),
+      skipDuplicates: true,
+    });
+  }
 
   return NextResponse.json(person, { status: 201 });
 }

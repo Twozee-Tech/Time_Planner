@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -24,6 +26,11 @@ interface Section {
   sortOrder: number;
 }
 
+interface Team {
+  id: string;
+  name: string;
+}
+
 interface Person {
   id: string;
   firstName: string;
@@ -34,9 +41,11 @@ interface Person {
   sortOrder: number;
   section: Section;
   sdm: { id: string; firstName: string; lastName: string } | null;
+  teamMembers: { team: Team }[];
 }
 
 export default function PeoplePage() {
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Person | null>(null);
@@ -45,7 +54,11 @@ export default function PeoplePage() {
     lastName: "",
     sectionId: "",
     sdmId: null as string | null,
+    teamIds: [] as string[],
   });
+
+  const isSuperAdmin =
+    (session?.user as { role?: string } | undefined)?.role === "SUPER_ADMIN";
 
   const { data: persons = [], isLoading } = useQuery<Person[]>({
     queryKey: ["persons"],
@@ -55,6 +68,11 @@ export default function PeoplePage() {
   const { data: sections = [] } = useQuery<Section[]>({
     queryKey: ["sections"],
     queryFn: () => fetch("/api/sections").then((r) => r.json()),
+  });
+
+  const { data: teams = [] } = useQuery<Team[]>({
+    queryKey: ["teams"],
+    queryFn: () => fetch("/api/teams").then((r) => r.json()),
   });
 
   const createMutation = useMutation({
@@ -123,7 +141,7 @@ export default function PeoplePage() {
 
   function openCreate() {
     setEditing(null);
-    setForm({ firstName: "", lastName: "", sectionId: sections[0]?.id || "", sdmId: null });
+    setForm({ firstName: "", lastName: "", sectionId: sections[0]?.id || "", sdmId: null, teamIds: [] });
     setDialogOpen(true);
   }
 
@@ -134,6 +152,7 @@ export default function PeoplePage() {
       lastName: person.lastName,
       sectionId: person.sectionId,
       sdmId: person.sdmId,
+      teamIds: person.teamMembers.map((tm) => tm.team.id),
     });
     setDialogOpen(true);
   }
@@ -141,6 +160,15 @@ export default function PeoplePage() {
   function closeDialog() {
     setDialogOpen(false);
     setEditing(null);
+  }
+
+  function toggleTeam(teamId: string) {
+    setForm((f) => ({
+      ...f,
+      teamIds: f.teamIds.includes(teamId)
+        ? f.teamIds.filter((t) => t !== teamId)
+        : [...f.teamIds, teamId],
+    }));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -181,7 +209,7 @@ export default function PeoplePage() {
             <TableRow>
               <TableHead>Imię i nazwisko</TableHead>
               <TableHead>Sekcja</TableHead>
-              <TableHead>SDM</TableHead>
+              {isSuperAdmin && <TableHead>Zespół</TableHead>}
               <TableHead>Status</TableHead>
               <TableHead className="w-24">Akcje</TableHead>
             </TableRow>
@@ -204,11 +232,21 @@ export default function PeoplePage() {
                     </span>
                   </TableCell>
                   <TableCell>{person.section.name}</TableCell>
-                  <TableCell>
-                    {person.sdm
-                      ? `${person.sdm.firstName} ${person.sdm.lastName}`
-                      : "—"}
-                  </TableCell>
+                  {isSuperAdmin && (
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {person.teamMembers.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          person.teamMembers.map((tm) => (
+                            <Badge key={tm.team.id} variant="secondary" className="text-xs">
+                              {tm.team.name}
+                            </Badge>
+                          ))
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Badge
                       variant={person.isActive ? "default" : "secondary"}
@@ -325,6 +363,28 @@ export default function PeoplePage() {
                 </SelectContent>
               </Select>
             </div>
+            {teams.length > 0 && (
+              <div className="space-y-2">
+                <Label>Zespół</Label>
+                <div className="flex flex-wrap gap-3 pt-1">
+                  {teams.map((team) => (
+                    <div key={team.id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`team-${team.id}`}
+                        checked={form.teamIds.includes(team.id)}
+                        onCheckedChange={() => toggleTeam(team.id)}
+                      />
+                      <label
+                        htmlFor={`team-${team.id}`}
+                        className="text-sm cursor-pointer"
+                      >
+                        {team.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={closeDialog}>
                 Anuluj
