@@ -30,7 +30,7 @@ Web application for team resource/capacity planning and project assignments. Rep
 ## Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Twozee-Tech/Time_Planner/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Lukas-tek-no-logic/Time_Planner/main/install.sh | bash
 ```
 
 This will clone the repo to `~/Time_Planner`, build the containers, and start the app on **port 3500**.

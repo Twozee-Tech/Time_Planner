@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-REPO="Twozee-Tech/Time_Planner"
+REPO="Lukas-tek-no-logic/Time_Planner"
 INSTALL_DIR="$HOME/Time_Planner"
 
 echo "=== Time Planner - Instalacja ==="
